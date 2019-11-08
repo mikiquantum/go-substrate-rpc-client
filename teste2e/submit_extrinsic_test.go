@@ -18,7 +18,10 @@ package teste2e
 
 import (
 	"fmt"
+	"github.com/centrifuge/go-substrate-rpc-client/rpc/author"
+	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 
 	gsrpc "github.com/centrifuge/go-substrate-rpc-client"
 	"github.com/centrifuge/go-substrate-rpc-client/config"
@@ -46,15 +49,24 @@ func TestChain_SubmitExtrinsic(t *testing.T) {
 		panic(err)
 	}
 
+	// Uncomment this to send an anchor
+	//docRoot, err := types.NewHashFromHexString("0xc74ca1a0e0c6ab715a05d7c89949986b274dac73a9eff010c6a1dc1b74fc6c2e")
+	//if err != nil {
+	//	panic(err)
+	//}
+	//signRoot, err := types.NewHashFromHexString("0xc74ca1a0e0c6ab715a05d7c89949986b274dac73a9eff010c6a1dc1b74fc6c22")
+	//if err != nil {
+	//	panic(err)
+	//}
+
 	c, err := types.NewCall(meta, "Balances.transfer", bob, types.UCompact(6969))
+	// Uncomment this to send an anchor
+	//c, err := types.NewCall(meta, "Anchor.pre_commit", docRoot, signRoot)
 	if err != nil {
 		panic(err)
 	}
 
 	ext := types.NewExtrinsic(c)
-	if err != nil {
-		panic(err)
-	}
 
 	// blockHash, err := api.RPC.Chain.GetBlockHashLatest()
 	// if err != nil {
@@ -105,4 +117,104 @@ func TestChain_SubmitExtrinsic(t *testing.T) {
 	}
 
 	fmt.Printf("%#v\n", extEnc)
+
+	auth := author.NewAuthor(api.Client)
+
+	startBlock, err := api.RPC.Chain.GetBlockLatest()
+	assert.NoError(t, err)
+	startBlockNumber := startBlock.Block.Header.Number
+	fmt.Printf("Start Block number: %d\n", startBlockNumber)
+
+	hsh, err := auth.SubmitExtrinsic(ext)
+	if err != nil {
+		panic(err)
+	}
+	assert.NoError(t, err)
+	fmt.Printf("HASH %x\n", hsh)
+
+	currenBlockNumber := startBlockNumber
+	var foundBlock *types.SignedBlock
+	var idxBlock int
+	for {
+		fmt.Println("Processing block", currenBlockNumber)
+		nBlock, err := api.RPC.Chain.GetBlockLatest()
+		if err != nil {
+			fmt.Println("AA0", err)
+			break
+		}
+		//nhBlock, err := api.RPC.Chain.GetBlockHash(uint64(currenBlockNumber))
+		//if err != nil {
+		//	fmt.Println("AA", err)
+		//	break
+		//}
+		//assert.NoError(t, err)
+		//nBlock, err := api.RPC.Chain.GetBlock(nhBlock)
+		//if err != nil {
+		//	fmt.Println("BB", err)
+		//	break
+		//}
+		idxBlock = isExtrinsicInBlock(ext, nBlock.Block)
+		if idxBlock > -1 {
+			foundBlock = nBlock
+			break
+		}
+		currenBlockNumber = nBlock.Block.Header.Number
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	fmt.Println("Found extrinsic in block", foundBlock.Block.Header.Number, "with index", idxBlock)
+
+	meta, err = api.RPC.State.GetMetadataLatest()
+	if err != nil {
+		panic(err)
+	}
+
+	key, err = types.CreateStorageKey(meta, "System", "Events", nil)
+	if err != nil {
+		panic(err)
+	}
+
+	bh, err := api.RPC.Chain.GetBlockHash(uint64(foundBlock.Block.Header.Number))
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("bh %x\n", bh)
+	fmt.Printf("key %s\n", key.Hex())
+
+	var er types.EventRecordsRaw
+	err = api.RPC.State.GetStorage(key, &er, bh)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("EVR %x\n", er)
+	e := types.EventRecords{}
+	err = er.DecodeEventRecords(meta, &e)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Failed Len: ", len(e.System_ExtrinsicFailed))
+	fmt.Println("Failed Err: ", e.System_ExtrinsicFailed[0].DispatchError)
+	fmt.Println("Failed Ph AsApplyExt: ", e.System_ExtrinsicFailed[0].Phase.AsApplyExtrinsic)
+	fmt.Println("Failed Ph IsApplyExt: ", e.System_ExtrinsicFailed[0].Phase.IsApplyExtrinsic)
+	fmt.Println("Failed Ph IsFinal: ", e.System_ExtrinsicFailed[0].Phase.IsFinalization)
+	fmt.Println("Failed Topc: ", len(e.System_ExtrinsicFailed[0].Topics))
+	fmt.Println("Succeeded Len: ", len(e.System_ExtrinsicSuccess))
+	fmt.Println("Succeeded Ph AsApplyExt: ", e.System_ExtrinsicSuccess[0].Phase.AsApplyExtrinsic)
+	fmt.Println("Succeeded Ph IsApplyExt: ", e.System_ExtrinsicSuccess[0].Phase.IsApplyExtrinsic)
+	fmt.Println("Succeeded Ph IsFinal: ", e.System_ExtrinsicSuccess[0].Phase.IsFinalization)
+	fmt.Println("Succeeded Topc: ", len(e.System_ExtrinsicSuccess[0].Topics))
+
+}
+
+func isExtrinsicInBlock(ext types.Extrinsic, block types.Block) int {
+	found := -1
+	for idx, xx := range block.Extrinsics {
+		if xx.Signature == ext.Signature {
+			found = idx
+			break
+		}
+	}
+	return found
 }
