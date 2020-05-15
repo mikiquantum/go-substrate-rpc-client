@@ -17,6 +17,7 @@
 package author
 
 import (
+	"fmt"
 	"github.com/centrifuge/go-substrate-rpc-client/types"
 )
 
@@ -28,7 +29,7 @@ func (a *Author) PendingExtrinsics() ([]types.Extrinsic, error) {
 		return nil, err
 	}
 
-	// fmt.Println(res)
+	fmt.Println(res)
 
 	xts := make([]types.Extrinsic, len(res))
 

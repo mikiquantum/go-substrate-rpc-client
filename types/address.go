@@ -17,8 +17,6 @@
 package types
 
 import (
-	"fmt"
-
 	"github.com/centrifuge/go-substrate-rpc-client/scale"
 )
 
@@ -57,61 +55,21 @@ func NewAddressFromAccountIndex(u uint32) Address {
 }
 
 func (a *Address) Decode(decoder scale.Decoder) error {
-	b, err := decoder.ReadOneByte()
+	var sm [32]byte // Reading Address[32]
+	err := decoder.Decode(&sm)
 	if err != nil {
 		return err
 	}
 
-	if defaultOptions.NoPalletIndices {
-		var sm [31]byte // Reading Address[32] minus b already read
-		err = decoder.Decode(&sm)
-		if err != nil {
-			return err
-		}
-		a.AsAccountID = NewAccountID(append([]byte{b}, sm[:]...)) // Push b back to the front
-		a.IsAccountID = true
-		return nil
-	}
+	a.AsAccountID = NewAccountID(sm[:])
+	a.IsAccountID = true
 
-	if b == 0xff {
-		err = decoder.Decode(&a.AsAccountID)
-		a.IsAccountID = true
-		return err
-	}
-
-	if b == 0xfe {
-		return fmt.Errorf("decoding of Address with 0xfe prefix not supported")
-	}
-
-	if b == 0xfd {
-		err = decoder.Decode(&a.AsAccountIndex)
-		a.IsAccountIndex = true
-		return err
-	}
-
-	if b == 0xfc {
-		var aIndex uint16
-		err = decoder.Decode(&aIndex)
-		a.IsAccountIndex = true
-		a.AsAccountIndex = AccountIndex(aIndex)
-		return err
-	}
-
-	a.IsAccountIndex = true
-	a.AsAccountIndex = AccountIndex(b)
 	return nil
 }
 
 func (a Address) Encode(encoder scale.Encoder) error {
 	// type of address - public key
 	if a.IsAccountID {
-		if !defaultOptions.NoPalletIndices { // Skip in case target chain doesn't include indices pallet
-			err := encoder.PushByte(255)
-			if err != nil {
-				return err
-			}
-		}
-
 		err := encoder.Write(a.AsAccountID[:])
 		if err != nil {
 			return err
