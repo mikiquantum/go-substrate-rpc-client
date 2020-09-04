@@ -94,3 +94,81 @@ func (e ExtrinsicPayloadV3) Encode(encoder scale.Encoder) error {
 func (e *ExtrinsicPayloadV3) Decode(decoder scale.Decoder) error {
 	return fmt.Errorf("decoding of ExtrinsicPayloadV3 is not supported")
 }
+
+// ExtrinsicPayloadV4 is a signing payload for an Extrinsic. For the final encoding, it is variable length based on
+// the contents included. Note that `BytesBare` is absolutely critical – we don't want the method (Bytes)
+// to have the length prefix included. This means that the data-as-signed is un-decodable,
+// but is also doesn't need the extra information, only the pure data (and is not decoded)
+// ... The same applies to V1-V3, if we have a V5, carry move this comment to latest
+type ExtrinsicPayloadV4 struct {
+	Method      BytesBare
+	Era         ExtrinsicEra // extra via system::CheckEra
+	Nonce       UCompact     // extra via system::CheckNonce (Compact<Index> where Index is u32)
+	Tip         UCompact     // extra via balances::TakeFees (Compact<Balance> where Balance is u128)
+	SpecVersion U32          // additional via system::CheckVersion
+	TxVersion   U32          // additional via system::CheckTxVersion
+	GenesisHash Hash         // additional via system::CheckGenesis
+	BlockHash   Hash         // additional via system::CheckEra
+}
+
+// Sign the extrinsic payload with the given derivation path
+func (e ExtrinsicPayloadV4) Sign(signer signature.KeyringPair) (Signature, error) {
+	b, err := EncodeToBytes(e)
+	if err != nil {
+		return Signature{}, err
+	}
+
+	sig, err := signature.Sign(b, signer.URI)
+	return NewSignature(sig), err
+}
+
+// Encode implements encoding for ExtrinsicPayloadV4, which just unwraps the bytes of ExtrinsicPayloadV4 without
+// adding a compact length prefix
+func (e ExtrinsicPayloadV4) Encode(encoder scale.Encoder) error {
+	err := encoder.Encode(e.Method)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(e.Era)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(e.Nonce)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(e.Tip)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(e.SpecVersion)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(e.TxVersion)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(e.GenesisHash)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.Encode(e.BlockHash)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Decode does nothing and always returns an error. ExtrinsicPayloadV3 is only used for encoding, not for decoding
+func (e *ExtrinsicPayloadV4) Decode(decoder scale.Decoder) error {
+	return fmt.Errorf("decoding of ExtrinsicPayloadV4 is not supported")
+}

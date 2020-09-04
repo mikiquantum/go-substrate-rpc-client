@@ -58,6 +58,13 @@
   version = "v1.4.1"
 
 [[projects]]
+  digest = "1:ef958c5ee287b3420d5f7312cd16a79d523ec47f7816f9ca8eac4c2efac6dfcf"
+  name = "github.com/jeremywohl/flatten"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "929980fd87f1df0d6323cdac61ea3844535f609d"
+
+[[projects]]
   digest = "1:657ca22c61c436fc17a86b5be00bbfedb86c26795dcfe0f3294ed3571aa7223c"
   name = "github.com/pierrec/xxHash"
   packages = ["xxHash64"]
@@ -128,6 +135,7 @@
     "github.com/ethereum/go-ethereum/p2p/netutil",
     "github.com/ethereum/go-ethereum/rpc",
     "github.com/gorilla/websocket",
+    "github.com/jeremywohl/flatten",
     "github.com/pierrec/xxHash/xxHash64",
     "github.com/rs/cors",
     "github.com/stretchr/testify/assert",
